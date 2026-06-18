@@ -43,7 +43,7 @@ export default async function EquipmentDetailPage({ params }: { params: Promise<
   const { data: logs } = taskIds.length > 0
     ? await supabase
         .from('maintenance_logs')
-        .select('*, profiles(name)')
+        .select('*, profiles!performed_by(name)')
         .in('task_id', taskIds)
         .eq('status', 'done')
         .order('performed_at', { ascending: false })
@@ -145,11 +145,9 @@ export default async function EquipmentDetailPage({ params }: { params: Promise<
                             )}
                           </td>
                           <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                            {task.taskStatus === 'overdue' && !task.lastLog ? (
-                              <span className="text-red-500 text-xs">Никогда</span>
-                            ) : (
-                              task.nextDue.toLocaleDateString('ru-RU')
-                            )}
+                            <span className={task.taskStatus === 'overdue' ? 'text-red-500' : ''}>
+                              {task.nextDue.toLocaleDateString('ru-RU')}
+                            </span>
                           </td>
                           <td className="px-4 py-3">
                             <StatusChip status={task.taskStatus} />

@@ -38,7 +38,7 @@ export default async function HistoryPage({
     .select(`
       *,
       maintenance_tasks(description, frequency, equipment_id),
-      profiles(name)
+      profiles!performed_by(name)
     `, { count: 'exact' })
     .order('performed_at', { ascending: false })
     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
