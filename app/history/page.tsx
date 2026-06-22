@@ -61,7 +61,7 @@ export default async function HistoryPage({
         <HistoryClient
           logs={logs || []}
           equipment={equipment as Equipment[] || []}
-          isPM={profile.role === 'production_manager'}
+          isOwner={profile.role === 'owner'}
           userId={user.id}
           totalCount={count ?? 0}
           currentPage={page}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { useRouter, usePathname } from 'next/navigation'
 import type { Equipment, Frequency } from '@/lib/types'
@@ -11,6 +11,7 @@ interface LogEntry {
   performed_at: string
   status: 'done' | 'skipped'
   note: string | null
+  photo_url: string | null
   verified: boolean
   verified_by: string | null
   verified_at: string | null
@@ -25,7 +26,7 @@ interface LogEntry {
 interface Props {
   logs: LogEntry[]
   equipment: Equipment[]
-  isPM: boolean
+  isOwner: boolean
   userId: string
   totalCount: number
   currentPage: number
@@ -46,7 +47,7 @@ const FREQ_LABELS: Record<Frequency, string> = {
 export default function HistoryClient({
   logs,
   equipment,
-  isPM,
+  isOwner,
   userId,
   totalCount,
   currentPage,
@@ -66,7 +67,24 @@ export default function HistoryClient({
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
-  // Клиентская фильтрация по оборудованию и статусу (не влияет на пагинацию)
+  // Модалка фото
+  const [modalPhoto, setModalPhoto] = useState<string | null>(null)
+  const [modalLogId, setModalLogId] = useState<string | null>(null)
+
+  // Закрытие модалки по ESC
+  useEffect(() => {
+    if (!modalPhoto) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setModalPhoto(null)
+        setModalLogId(null)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [modalPhoto])
+
+  // Клиентская фильтрация по оборудованию и статусу
   const filtered = logs.filter(log => {
     if (filterEq !== 'all' && log.maintenance_tasks?.equipment_id !== filterEq) return false
     if (filterStatus !== 'all' && log.status !== filterStatus) return false
@@ -105,7 +123,6 @@ export default function HistoryClient({
       .eq('id', logId)
 
     if (error) {
-      // Inline-ошибка вместо alert() (UX-02)
       setVerifyError('Ошибка верификации: ' + error.message)
     } else {
       router.refresh()
@@ -113,7 +130,6 @@ export default function HistoryClient({
     setVerifying(null)
   }
 
-  // Экспорт в Excel через API route (D2)
   const handleExport = async () => {
     setExporting(true)
     const params = new URLSearchParams()
@@ -123,7 +139,6 @@ export default function HistoryClient({
     if (filterStatus !== 'all') params.set('status', filterStatus)
 
     const url = `/api/export?${params.toString()}`
-    // Создаём временную ссылку для скачивания
     const a = document.createElement('a')
     a.href = url
     a.download = `history-${dateFrom || 'all'}.xlsx`
@@ -137,7 +152,6 @@ export default function HistoryClient({
     <div>
       {/* Фильтры */}
       <div className="flex flex-wrap gap-3 mb-4">
-        {/* Фильтр по дате (D1) */}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-500 whitespace-nowrap">С:</label>
           <input
@@ -188,7 +202,6 @@ export default function HistoryClient({
 
         <span className="text-sm text-gray-400 self-center">{filtered.length} из {totalCount}</span>
 
-        {/* Кнопка экспорта в Excel (D2) */}
         <button
           onClick={handleExport}
           disabled={exporting}
@@ -202,7 +215,7 @@ export default function HistoryClient({
         </button>
       </div>
 
-      {/* Inline-ошибка верификации (UX-02) */}
+      {/* Inline-ошибка верификации */}
       {verifyError && (
         <p className="mb-3 text-sm text-red-600 flex items-center gap-1">
           <span aria-hidden="true">⚠</span>
@@ -264,24 +277,44 @@ export default function HistoryClient({
                       {log.profiles?.name || '—'}
                     </td>
                     <td className="px-4 py-3">
-                      {log.verified ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-green-700">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Верифицировано
-                        </span>
-                      ) : isPM ? (
-                        <button
-                          onClick={() => handleVerify(log.id)}
-                          disabled={verifying === log.id}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-                        >
-                          {verifying === log.id ? 'Сохранение...' : 'Верифицировать'}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {/* Иконка фото — кликабельна если есть */}
+                        {log.photo_url && (
+                          <button
+                            onClick={() => {
+                              setModalPhoto(log.photo_url!)
+                              setModalLogId(log.id)
+                            }}
+                            className="text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0"
+                            title="Посмотреть фото"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        )}
+
+                        {/* Статус верификации / кнопка для собственника */}
+                        {log.verified ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-green-700">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Верифицировано
+                          </span>
+                        ) : isOwner ? (
+                          <button
+                            onClick={() => handleVerify(log.id)}
+                            disabled={verifying === log.id}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                          >
+                            {verifying === log.id ? 'Сохранение...' : 'Верифицировать'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -291,7 +324,7 @@ export default function HistoryClient({
         </div>
       </div>
 
-      {/* Пагинация (S2-06) */}
+      {/* Пагинация */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-gray-500">
@@ -312,6 +345,62 @@ export default function HistoryClient({
             >
               Вперёд →
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Модалка просмотра фото */}
+      {modalPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => {
+            setModalPhoto(null)
+            setModalLogId(null)
+          }}
+        >
+          <div
+            className="relative bg-white rounded-2xl overflow-hidden max-w-2xl w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Фото */}
+            <img
+              src={modalPhoto}
+              alt="Фото выполненной работы"
+              className="w-full object-contain bg-gray-100"
+              style={{ maxHeight: '70vh' }}
+            />
+
+            {/* Кнопки */}
+            <div className="flex items-center justify-between p-4 border-t border-gray-100">
+              {isOwner && modalLogId && !logs.find(l => l.id === modalLogId)?.verified ? (
+                <button
+                  onClick={async () => {
+                    if (modalLogId) {
+                      await handleVerify(modalLogId)
+                      setModalPhoto(null)
+                      setModalLogId(null)
+                    }
+                  }}
+                  disabled={verifying === modalLogId}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {verifying === modalLogId ? 'Сохранение...' : '✓ Верифицировать'}
+                </button>
+              ) : (
+                <span className="text-sm text-green-700 font-medium">
+                  {logs.find(l => l.id === modalLogId)?.verified ? '✓ Уже верифицировано' : ''}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setModalPhoto(null)
+                  setModalLogId(null)
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                Закрыть
+              </button>
+            </div>
           </div>
         </div>
       )}
