@@ -43,19 +43,32 @@ export default function ChecklistClient({ dueItems, userId, frequencyLabels, rol
   const [photoPreviews, setPhotoPreviews] = useState<Record<string, string>>({})
   // Ошибки обработки/загрузки фото
   const [photoErrors, setPhotoErrors] = useState<Record<string, string>>({})
+  // Подтверждена ли отметка "Выполнено" (черновик → подтверждено)
+  const [confirmedDone, setConfirmedDone] = useState<Record<string, boolean>>({})
 
   const allTaskIds = dueItems.flatMap(item => item.tasks.map(t => t.id))
   const decidedCount = allTaskIds.filter(id => decisions[id]?.decision).length
 
   const setDecision = (taskId: string, decision: TaskDecision) => {
-    // Если снимаем "Выполнено" — удаляем фото
+    // Если снимаем "Выполнено" — удаляем фото и сбрасываем подтверждение
     if (decision !== 'done' && decisions[taskId]?.decision === 'done') {
       handlePhotoRemove(taskId)
+      setConfirmedDone(prev => ({ ...prev, [taskId]: false }))
     }
     setDecisions(prev => ({
       ...prev,
       [taskId]: { ...prev[taskId], decision, note: prev[taskId]?.note || '' }
     }))
+  }
+
+  // Подтвердить черновик "Выполнено" — закрепляет отметку
+  const handleConfirmDone = (taskId: string) => {
+    setConfirmedDone(prev => ({ ...prev, [taskId]: true }))
+  }
+
+  // Снова открыть черновик после подтверждения — ничего не удаляет
+  const handleReopenDone = (taskId: string) => {
+    setConfirmedDone(prev => ({ ...prev, [taskId]: false }))
   }
 
   const setNote = (taskId: string, note: string) => {
@@ -216,6 +229,7 @@ export default function ChecklistClient({ dueItems, userId, frequencyLabels, rol
             {tasks.map(task => {
               const decision = decisions[task.id]?.decision || null
               const note = decisions[task.id]?.note || ''
+              const confirmed = confirmedDone[task.id] || false
 
               return (
                 <div key={task.id} className={`px-4 py-3 ${decision === 'done' ? 'bg-green-50/50' : decision === 'skipped' ? 'bg-gray-50' : ''}`}>
@@ -335,26 +349,53 @@ export default function ChecklistClient({ dueItems, userId, frequencyLabels, rol
 
                     {/* Кнопки */}
                     <div className="flex gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => setDecision(task.id, decision === 'done' ? null : 'done')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          decision === 'done'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-green-50 hover:border-green-300'
-                        }`}
-                      >
-                        ✓ Выполнено
-                      </button>
-                      <button
-                        onClick={() => setDecision(task.id, decision === 'skipped' ? null : 'skipped')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          decision === 'skipped'
-                            ? 'bg-gray-600 text-white'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        Пропустить
-                      </button>
+                      {decision === 'done' && !confirmed ? (
+                        <>
+                          <button
+                            onClick={() => handleConfirmDone(task.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white transition-colors"
+                          >
+                            ✓ Подтвердить
+                          </button>
+                          <button
+                            onClick={() => setDecision(task.id, null)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            ✕ Отменить
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              if (decision === 'done' && confirmed) {
+                                // Подтверждённую отметку повторный клик не снимает —
+                                // открывает черновик заново, без удаления фото
+                                handleReopenDone(task.id)
+                              } else {
+                                setDecision(task.id, decision === 'done' ? null : 'done')
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              decision === 'done'
+                                ? 'bg-green-600 text-white'
+                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-green-50 hover:border-green-300'
+                            }`}
+                          >
+                            ✓ Выполнено
+                          </button>
+                          <button
+                            onClick={() => setDecision(task.id, decision === 'skipped' ? null : 'skipped')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              decision === 'skipped'
+                                ? 'bg-gray-600 text-white'
+                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            Пропустить
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
