@@ -180,3 +180,19 @@ USING (
 CREATE POLICY "authenticated_can_read_photos"
 ON storage.objects FOR SELECT TO authenticated
 USING (bucket_id = 'maintenance-photos');
+
+-- ============================================================
+-- Фикс: собственник не мог верифицировать (2026-06-22)
+-- UI-проверка роли была исправлена раньше (isPM → isOwner),
+-- но RLS-политика logs_update разрешала UPDATE только production_manager.
+-- Собственник получал "Ошибка верификации" при попытке записи.
+-- ============================================================
+CREATE POLICY "owner_can_verify_logs"
+ON maintenance_logs FOR UPDATE TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'owner'
+  )
+);

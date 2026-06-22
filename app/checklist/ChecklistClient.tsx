@@ -66,11 +66,6 @@ export default function ChecklistClient({ dueItems, userId, frequencyLabels, rol
     setConfirmedDone(prev => ({ ...prev, [taskId]: true }))
   }
 
-  // Снова открыть черновик после подтверждения — ничего не удаляет
-  const handleReopenDone = (taskId: string) => {
-    setConfirmedDone(prev => ({ ...prev, [taskId]: false }))
-  }
-
   const setNote = (taskId: string, note: string) => {
     setDecisions(prev => ({
       ...prev,
@@ -348,7 +343,7 @@ export default function ChecklistClient({ dueItems, userId, frequencyLabels, rol
                     </div>
 
                     {/* Кнопки */}
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex gap-2 flex-shrink-0 items-center">
                       {decision === 'done' && !confirmed ? (
                         <>
                           <button
@@ -364,18 +359,22 @@ export default function ChecklistClient({ dueItems, userId, frequencyLabels, rol
                             ✕ Отменить
                           </button>
                         </>
+                      ) : decision === 'done' && confirmed ? (
+                        <>
+                          <span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white">
+                            ✓ Выполнено
+                          </span>
+                          <button
+                            onClick={() => setDecision(task.id, null)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            ✕ Отменить
+                          </button>
+                        </>
                       ) : (
                         <>
                           <button
-                            onClick={() => {
-                              if (decision === 'done' && confirmed) {
-                                // Подтверждённую отметку повторный клик не снимает —
-                                // открывает черновик заново, без удаления фото
-                                handleReopenDone(task.id)
-                              } else {
-                                setDecision(task.id, decision === 'done' ? null : 'done')
-                              }
-                            }}
+                            onClick={() => setDecision(task.id, decision === 'done' ? null : 'done')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                               decision === 'done'
                                 ? 'bg-green-600 text-white'
