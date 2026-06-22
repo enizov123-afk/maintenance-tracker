@@ -151,14 +151,14 @@ export default function HistoryClient({
   return (
     <div>
       {/* Фильтры */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-4">
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-500 whitespace-nowrap">С:</label>
           <input
             type="date"
             value={dateFrom}
             onChange={e => setDateFrom(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 text-base sm:text-sm border border-gray-300 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -167,12 +167,12 @@ export default function HistoryClient({
             type="date"
             value={dateTo}
             onChange={e => setDateTo(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 text-base sm:text-sm border border-gray-300 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <button
           onClick={applyDateFilter}
-          className="text-sm bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="text-base sm:text-sm bg-blue-600 text-white px-3 py-2.5 sm:py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
           Применить
         </button>
@@ -182,7 +182,7 @@ export default function HistoryClient({
         <select
           value={filterEq}
           onChange={e => setFilterEq(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-base sm:text-sm border border-gray-300 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">Всё оборудование</option>
           {equipment.map(eq => (
@@ -193,7 +193,7 @@ export default function HistoryClient({
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-base sm:text-sm border border-gray-300 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">Все статусы</option>
           <option value="done">Выполнено</option>
@@ -205,7 +205,7 @@ export default function HistoryClient({
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="ml-auto text-sm border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          className="sm:ml-auto text-base sm:text-sm border border-green-300 text-green-700 bg-green-50 px-3 py-2.5 sm:py-2 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -223,8 +223,74 @@ export default function HistoryClient({
         </p>
       )}
 
-      {/* Таблица */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Карточки — мобильный экран, без таблиц и горизонтального скролла */}
+      <div className="space-y-3 md:hidden">
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-base">
+            Нет записей за выбранный период
+          </div>
+        ) : filtered.map(log => {
+          const eq = log.maintenance_tasks ? equipmentById[log.maintenance_tasks.equipment_id] : null
+          return (
+            <div key={log.id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="text-sm text-gray-500">
+                  {new Date(log.performed_at + 'T00:00:00').toLocaleDateString('ru-RU')}
+                </span>
+                <span className={`inline-flex px-2.5 py-1 rounded-lg text-sm font-medium ${
+                  log.status === 'done' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {log.status === 'done' ? 'Выполнено' : 'Пропущено'}
+                </span>
+              </div>
+              <p className="text-base text-gray-900 leading-snug mb-1">
+                {log.maintenance_tasks?.description || '—'}
+              </p>
+              <p className="text-sm text-gray-400 mb-2">
+                {eq?.name || '—'}
+                {log.maintenance_tasks ? ` · ${FREQ_LABELS[log.maintenance_tasks.frequency]}` : ''}
+              </p>
+              {log.note && <p className="text-sm text-gray-400 italic mb-2">{log.note}</p>}
+              <p className="text-sm text-gray-400 mb-3">Отметил: {log.profiles?.name || '—'}</p>
+
+              {log.photo_url && (
+                <button
+                  type="button"
+                  onClick={() => { setModalPhoto(log.photo_url!); setModalLogId(log.id) }}
+                  className="block w-full mb-3"
+                >
+                  <img
+                    src={log.photo_url}
+                    alt="Фото выполненной работы"
+                    className="w-full rounded-lg object-cover"
+                    style={{ maxHeight: '200px' }}
+                  />
+                </button>
+              )}
+
+              {log.verified ? (
+                <span className="inline-flex items-center gap-1.5 text-base text-green-700 font-medium">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Верифицировано
+                </span>
+              ) : isOwner ? (
+                <button
+                  onClick={() => handleVerify(log.id)}
+                  disabled={verifying === log.id}
+                  className="w-full py-3 rounded-lg text-base font-medium bg-blue-600 text-white disabled:opacity-50 transition-colors"
+                >
+                  {verifying === log.id ? 'Сохранение...' : 'Верифицировать'}
+                </button>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Таблица — десктоп */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -326,7 +392,7 @@ export default function HistoryClient({
 
       {/* Пагинация */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center justify-between mt-4 gap-3">
           <p className="text-sm text-gray-500">
             Страница {currentPage + 1} из {totalPages}
           </p>
@@ -334,14 +400,14 @@ export default function HistoryClient({
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 0}
-              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-base sm:text-sm border border-gray-300 rounded-lg px-4 py-2.5 sm:py-1.5 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               ← Назад
             </button>
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= totalPages - 1}
-              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-base sm:text-sm border border-gray-300 rounded-lg px-4 py-2.5 sm:py-1.5 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Вперёд →
             </button>
@@ -382,12 +448,12 @@ export default function HistoryClient({
                     }
                   }}
                   disabled={verifying === modalLogId}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-base font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   {verifying === modalLogId ? 'Сохранение...' : '✓ Верифицировать'}
                 </button>
               ) : (
-                <span className="text-sm text-green-700 font-medium">
+                <span className="text-base text-green-700 font-medium">
                   {logs.find(l => l.id === modalLogId)?.verified ? '✓ Уже верифицировано' : ''}
                 </span>
               )}
@@ -396,7 +462,7 @@ export default function HistoryClient({
                   setModalPhoto(null)
                   setModalLogId(null)
                 }}
-                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="text-base text-gray-500 hover:text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 Закрыть
               </button>

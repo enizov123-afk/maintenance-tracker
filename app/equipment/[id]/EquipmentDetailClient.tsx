@@ -211,9 +211,224 @@ export default function EquipmentDetailClient({ freqOrder, grouped, userId, isPM
     await supabase.from('maintenance_logs').update({ note: note || null }).eq('id', logId)
   }
 
+  // Общие производные флаги для задачи — используются и в карточках, и в таблице
+  const getTaskFlags = (task: TaskWithMeta) => {
+    const todayLog = task.todayLog
+    const isActionable = isPM && (task.taskStatus === 'overdue' || task.taskStatus === 'due_soon')
+    const isDraft = decisions[task.id] === 'done'
+    const saving = savingTaskId === task.id
+    const cancelling = todayLog ? cancellingLogId === todayLog.id : false
+    const error = taskErrors[task.id]
+    return { todayLog, isActionable, isDraft, saving, cancelling, error }
+  }
+
   return (
     <>
-      <div className="space-y-6">
+      {/* Карточки — мобильный экран, без таблиц и горизонтального скролла */}
+      <div className="space-y-6 md:hidden">
+        {freqOrder.map(freq => {
+          const groupTasks = grouped[freq]
+          if (groupTasks.length === 0) return null
+
+          return (
+            <div key={freq}>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                {frequencyLabels[freq]}
+              </h2>
+              <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+                {groupTasks.map(task => {
+                  const { todayLog, isActionable, isDraft, saving, cancelling, error } = getTaskFlags(task)
+
+                  return (
+                    <div key={task.id} className="p-4">
+                      <p className="text-base text-gray-900 leading-snug mb-2">{task.description}</p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400 mb-3">
+                        <span>{roleLabels[task.assignee_role] || task.assignee_role}</span>
+                        <span>·</span>
+                        <span className={task.taskStatus === 'overdue' ? 'text-red-500 font-medium' : ''}>
+                          Следующее: {task.nextDue.toLocaleDateString('ru-RU')}
+                        </span>
+                      </div>
+                      {task.lastLog && (
+                        <div className="flex items-center gap-2 text-sm text-gray-400 mb-3">
+                          <span>
+                            Последнее: {new Date(task.lastLog.performed_at + 'T00:00:00').toLocaleDateString('ru-RU')}
+                            {task.lastLog.profiles?.name ? ` · ${task.lastLog.profiles.name}` : ''}
+                          </span>
+                          {task.lastLog.photo_url && (
+                            <PhotoIconButton onClick={() => setModalPhoto(task.lastLog!.photo_url!)} />
+                          )}
+                        </div>
+                      )}
+
+                      {todayLog ? (
+                        todayLog.status === 'done' ? (
+                          <div className="space-y-3">
+                            {todayLog.photo_url && (
+                              <button
+                                type="button"
+                                onClick={() => setModalPhoto(todayLog.photo_url!)}
+                                className="block w-full"
+                              >
+                                <img
+                                  src={todayLog.photo_url}
+                                  alt="Фото выполненной работы"
+                                  className="w-full rounded-lg object-cover"
+                                  style={{ maxHeight: '220px' }}
+                                />
+                              </button>
+                            )}
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="inline-flex px-3 py-2 rounded-lg text-base font-medium bg-green-100 text-green-800">
+                                ✓ Выполнено
+                              </span>
+                              {isPM && (
+                                <button
+                                  onClick={() => handleCancelSaved(todayLog.id, task.id, 'done')}
+                                  disabled={cancelling}
+                                  className="px-4 py-2.5 rounded-lg text-base font-medium border border-gray-300 text-gray-600 disabled:opacity-50"
+                                >
+                                  {cancelling ? 'Удаление...' : 'Отменить'}
+                                </button>
+                              )}
+                            </div>
+                            {error && <p className="text-sm text-red-600">⚠ {error}</p>}
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="inline-flex px-3 py-2 rounded-lg text-base font-medium bg-gray-200 text-gray-700">
+                                Пропущено
+                              </span>
+                              {isPM && (
+                                <button
+                                  onClick={() => handleCancelSaved(todayLog.id, task.id, 'skipped')}
+                                  disabled={cancelling}
+                                  className="px-4 py-2.5 rounded-lg text-base font-medium border border-gray-300 text-gray-600 disabled:opacity-50"
+                                >
+                                  {cancelling ? 'Удаление...' : 'Отменить'}
+                                </button>
+                              )}
+                            </div>
+                            {isPM && (
+                              <input
+                                type="text"
+                                defaultValue={todayLog.note || ''}
+                                onBlur={e => handleNoteBlur(todayLog.id, e.target.value)}
+                                placeholder="Причина пропуска"
+                                className="text-base px-3 py-2.5 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              />
+                            )}
+                            {error && <p className="text-sm text-red-600">⚠ {error}</p>}
+                          </div>
+                        )
+                      ) : isActionable && isDraft ? (
+                        <div className="space-y-3">
+                          {photoPreviews[task.id] ? (
+                            <div>
+                              <img
+                                src={photoPreviews[task.id]}
+                                alt="Фото выполненной работы"
+                                className="w-full rounded-lg object-cover"
+                                style={{ maxHeight: '220px' }}
+                              />
+                              <div className="flex gap-4 mt-2">
+                                <label className="text-base text-blue-600 font-medium cursor-pointer">
+                                  🔄 Заменить
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={e => {
+                                      const file = e.target.files?.[0]
+                                      if (file) handlePhotoSelect(task.id, file)
+                                      e.target.value = ''
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePhotoRemove(task.id)}
+                                  className="text-base text-gray-400 font-medium"
+                                >
+                                  ✕ Удалить
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <label className="flex items-center justify-center gap-2 text-base text-gray-500 cursor-pointer border border-dashed border-gray-300 rounded-lg py-4 transition-colors">
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              Прикрепить фото
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0]
+                                  if (file) handlePhotoSelect(task.id, file)
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+                          )}
+                          {photoErrors[task.id] && (
+                            <p className="text-sm text-red-600">⚠ {photoErrors[task.id]}</p>
+                          )}
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => handleConfirmDone(task.id)}
+                              disabled={saving}
+                              className="flex-1 py-3 rounded-lg text-base font-medium bg-green-600 text-white disabled:opacity-50 transition-colors"
+                            >
+                              {saving ? 'Сохранение...' : '✓ Подтвердить'}
+                            </button>
+                            <button
+                              onClick={() => cancelDraft(task.id)}
+                              disabled={saving}
+                              className="flex-1 py-3 rounded-lg text-base font-medium bg-white border border-gray-300 text-gray-700 disabled:opacity-50 transition-colors"
+                            >
+                              ✕ Отменить
+                            </button>
+                          </div>
+                          {error && <p className="text-sm text-red-600">⚠ {error}</p>}
+                        </div>
+                      ) : isActionable ? (
+                        <div>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => startDraft(task.id)}
+                              className="flex-1 py-3 rounded-lg text-base font-medium bg-white border border-gray-300 text-gray-700 active:bg-green-50 transition-colors"
+                            >
+                              ✓ Выполнено
+                            </button>
+                            <button
+                              onClick={() => handleSkip(task.id)}
+                              disabled={saving}
+                              className="flex-1 py-3 rounded-lg text-base font-medium bg-white border border-gray-300 text-gray-700 disabled:opacity-50 transition-colors"
+                            >
+                              {saving ? 'Сохранение...' : 'Пропустить'}
+                            </button>
+                          </div>
+                          {error && <p className="text-sm text-red-600 mt-2">⚠ {error}</p>}
+                        </div>
+                      ) : (
+                        <StatusChip status={task.taskStatus} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Таблица — десктоп */}
+      <div className="hidden md:block space-y-6">
         {freqOrder.map(freq => {
           const groupTasks = grouped[freq]
           if (groupTasks.length === 0) return null
@@ -237,12 +452,7 @@ export default function EquipmentDetailClient({ freqOrder, grouped, userId, isPM
                     </thead>
                     <tbody>
                       {groupTasks.map(task => {
-                        const todayLog = task.todayLog
-                        const isActionable = isPM && (task.taskStatus === 'overdue' || task.taskStatus === 'due_soon')
-                        const isDraft = decisions[task.id] === 'done'
-                        const saving = savingTaskId === task.id
-                        const cancelling = todayLog ? cancellingLogId === todayLog.id : false
-                        const error = taskErrors[task.id]
+                        const { todayLog, isActionable, isDraft, saving, cancelling, error } = getTaskFlags(task)
 
                         return (
                           <tr key={task.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 align-top">
