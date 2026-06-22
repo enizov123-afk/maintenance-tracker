@@ -139,3 +139,44 @@ ORDER BY task_id, performed_at DESC;
 
 -- RLS для view: наследует от maintenance_logs
 GRANT SELECT ON latest_done_logs TO authenticated;
+
+-- ============================================================
+-- Миграция: фото-верификация (2026-06-18)
+-- ============================================================
+
+-- Колонка для хранения URL фото в журнале
+ALTER TABLE maintenance_logs ADD COLUMN IF NOT EXISTS photo_url TEXT;
+
+-- Storage bucket для фотографий
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('maintenance-photos', 'maintenance-photos', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS: только production_manager может загружать фото
+CREATE POLICY "pm_can_upload_photos"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'maintenance-photos' AND
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'production_manager'
+  )
+);
+
+-- RLS: только production_manager может перезаписывать фото
+CREATE POLICY "pm_can_update_photos"
+ON storage.objects FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'maintenance-photos' AND
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'production_manager'
+  )
+);
+
+-- RLS: все авторизованные могут читать фото
+CREATE POLICY "authenticated_can_read_photos"
+ON storage.objects FOR SELECT TO authenticated
+USING (bucket_id = 'maintenance-photos');
