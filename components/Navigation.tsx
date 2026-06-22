@@ -35,17 +35,6 @@ const navItems = [
     icon: <GearIcon />,
   },
   {
-    href: '/checklist',
-    label: 'Отметка работ',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-      </svg>
-    ),
-    pmOnly: true,
-  },
-  {
     href: '/history',
     label: 'История',
     icon: (
@@ -59,17 +48,14 @@ const navItems = [
 
 function NavLinks({
   pathname,
-  isPM,
   onNavigate,
 }: {
   pathname: string
-  isPM: boolean
   onNavigate?: () => void
 }) {
   return (
     <nav className="flex-1 p-3 space-y-1">
       {navItems.map(item => {
-        if (item.pmOnly && !isPM) return null
         const active = pathname === item.href || pathname.startsWith(item.href + '/')
         return (
           <Link
@@ -143,7 +129,7 @@ export default function Navigation({ profile }: NavProps) {
         <div className="p-4 border-b border-gray-100">
           <LogoBrand />
         </div>
-        <NavLinks pathname={pathname} isPM={isPM} />
+        <NavLinks pathname={pathname} />
         <UserFooter onLogout={handleLogout} />
       </aside>
 
@@ -184,7 +170,7 @@ export default function Navigation({ profile }: NavProps) {
                 </svg>
               </button>
             </div>
-            <NavLinks pathname={pathname} isPM={isPM} onNavigate={() => setMobileOpen(false)} />
+            <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             <UserFooter onLogout={handleLogout} />
           </div>
         </div>

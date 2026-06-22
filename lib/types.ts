@@ -45,6 +45,7 @@ export interface MaintenanceLog {
   verified: boolean
   verified_by: string | null
   verified_at: string | null
+  photo_url: string | null
   created_at: string
 }
 

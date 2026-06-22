@@ -196,3 +196,19 @@ USING (
     AND profiles.role = 'owner'
   )
 );
+
+-- ============================================================
+-- Миграция: отметка работ прямо в карточке оборудования (2026-06-22)
+-- Страница /checklist удалена, отметка теперь на /equipment/[id].
+-- "Отменить" после подтверждения — реальное удаление строки лога,
+-- поэтому нужен DELETE, которого не было вообще ни у кого.
+-- ============================================================
+CREATE POLICY "pm_can_delete_logs"
+ON maintenance_logs FOR DELETE TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'production_manager'
+  )
+);
